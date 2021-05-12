@@ -76,7 +76,6 @@ def FAUREPTS(n0, npts, d, b):
         a = np.matmul(C, a) % b
         P[i, :] = np.matmul(b_pwrs, a)
     return P
-
 # %%
 def SOBOLMAT(c_vec, m_init, r):
     q = len(c_vec) - 1
@@ -102,7 +101,7 @@ def GRAYCODE2(n):
     tmp2 = B_ARY(int(np.floor(n/2)), 2)
     if len(tmp2) < len(tmp1):
         tmp2 = np.concatenate((tmp2, np.zeros(len(tmp1) - len(tmp2))))
-    return np.bitwise_xor(np.int8(tmp1), np.int8(tmp2))
+    return np.bitwise_xor(np.int32(tmp1), np.int32(tmp2))
 # %%
 def SOBOLPTS(n0, npts, d, p_vec, m_mat):
     n_max = n0 + npts - 1
@@ -125,6 +124,7 @@ def SOBOLPTS(n0, npts, d, p_vec, m_mat):
         for m in range(r):
             for n in range(r):
                 y[m, i] += (V[m, n, i] * g[r-n-1]) % 2
+            # TODO: y[:, i] = (V[:, :, i] @ g[::-1]) % 2 might be ok?
     for k in range(n0, n_max + 1):
         if k == q_next:
             r += 1
@@ -140,7 +140,7 @@ def SOBOLPTS(n0, npts, d, p_vec, m_mat):
         a = NEXTB_ARY(a, 2)
         for i in range(d):
             for m in range(r):
-                # y[m, i] += (V[m, r-l-1, i] % 2)
+                # TODO: numpy accelaration
                 y[m, i] += V[m, r-l-1, i]
                 y[m, i] %= 2
             P[k-n0, i] = np.sum(b_pwrs * y[:, i])
@@ -197,7 +197,6 @@ def HaltonPricing(npts, T=1, d=8, r=0.05, sigma=0.3, S0=100, K=100):
         S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * np.sqrt(dt) * np.cumsum(z))
         res[i] = np.exp(-r * T) * max(np.prod(S**(1/d)) - K, 0)
     return res
-
 # %%
 def FaurePricing(npts, T=1, d=8, r=0.05, sigma=0.3, S0=100, K=100):
     res = np.zeros(npts)
@@ -216,7 +215,8 @@ def SobolPricing(npts, T=1, d=5, r=0.05, sigma=0.3, S0=100, K=100):
     res = np.zeros(npts)
     dt = T/d
     t = np.arange(1, d + 1) * dt
-    P = SOBOLPTS(1, npts, d, [3, 7, 11, 19, 37], np.array([[1, 1, 1, 1, 1], [1, 3, 5, 15, 17], [1, 1, 7, 11, 13], [1, 3, 7, 5, 7], [1, 1, 5, 3, 15]]))
+    P = SOBOLPTS(1, npts, d, [3, 7, 11, 19, 37], 
+    np.array([[1, 1, 1, 1, 1], [1, 3, 5, 15, 17], [1, 1, 7, 11, 13], [1, 3, 7, 5, 7], [1, 1, 5, 3, 15]]))
     P = P.flatten().reshape((d, npts), order="F")
     for i in range(npts):
         p = P[:, i]
