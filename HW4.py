@@ -67,6 +67,7 @@ def FAUREPTS(n0, npts, d, b):
     b_pwrs = (1/b) ** np.arange(1, r_max+1)
     P = np.zeros((d, npts))
     a = np.zeros((r_max, npts))
+    #TODO: fix bug here, and check Halton & Sobol
     a[:, 0] = B_ARY(n0, b)
     for i in range(1, npts):
         a[:, i] = NEXTB_ARY(a[:, i-1], b)
