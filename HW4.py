@@ -14,7 +14,10 @@ def B_ARY(k, b):
             q = q / b
     return np.array(a)
 # %%
-def NEXTB_ARY(a_in, b):
+def NEXTB_ARY(a_in_old, b):
+    a_in = a_in_old.copy()
+    while a_in.shape[0] > 1 and a_in[0] == 0:
+        a_in = a_in[1:]
     m = a_in.shape[0]
     carry = True
     a_out = np.zeros(m)
@@ -67,10 +70,15 @@ def FAUREPTS(n0, npts, d, b):
     b_pwrs = (1/b) ** np.arange(1, r_max+1)
     P = np.zeros((d, npts))
     a = np.zeros((r_max, npts))
-    #TODO: fix bug here, and check Halton & Sobol
-    a[:, 0] = B_ARY(n0, b)
+    tmp = B_ARY(n0, b)
+    if len(tmp) < r_max:
+        tmp = np.concatenate(([0], tmp))
+    a[:, 0] = tmp.copy()
     for i in range(1, npts):
-        a[:, i] = NEXTB_ARY(a[:, i-1], b)
+        tmp = NEXTB_ARY(a[:, i-1], b)
+        if len(tmp) < r_max:
+            tmp = np.concatenate(([0], tmp))
+        a[:, i] = tmp.copy()
     P[0, :] = np.matmul(b_pwrs, a)
     C = FAUREMAT(r_max, 1)
     for i in range(1, d):
@@ -87,7 +95,7 @@ def SOBOLMAT(c_vec, m_init, r):
         for i in range(q, r):
             m_next = m_state[0]
             for j in range(1, q + 1):
-                m_next ^= 2**j * int(c_vec[j]) * int(m_state[q-j])
+                m_next ^= (2**j * int(c_vec[j]) * int(m_state[q-j]))
             m_vec[i] = m_next
             m_state = np.concatenate((m_state[1:], [m_next]))
         for j in range(r):
@@ -119,7 +127,8 @@ def SOBOLPTS(n0, npts, d, p_vec, m_mat):
     for i in range(d):
         q = int(np.floor(np.log(p_vec[i]) / np.log(2)))
         c_vec = B_ARY(p_vec[i], 2)
-        V[:, :, i] = SOBOLMAT(c_vec, m_mat[i, :], r_max)
+        # V[:, :, i] = SOBOLMAT(c_vec, m_mat[i, :], r_max)
+        V[:, :, i] = SOBOLMAT(c_vec, m_mat[i], r_max)
     b_pwrs = (1/2)**np.arange(1, r_max + 1)
     for i in range(d):
         for m in range(r):
@@ -147,7 +156,7 @@ def SOBOLPTS(n0, npts, d, p_vec, m_mat):
             P[k-n0, i] = np.sum(b_pwrs * y[:, i])
     return P
 # %%
-def goodLatticePoints(npts, d=8, a=393):
+def goodLatticePoints(npts, d=50, a=393):
     n = 2039
     P = np.zeros((d, n))
     for i in range(n):
@@ -155,17 +164,15 @@ def goodLatticePoints(npts, d=8, a=393):
         for j in range(1, d):
             P[j, i] = (a * P[j-1, i]) % n
     P /= n
-    return P[:, :npts]
+    return P[:, 1:(npts+1)]
 # %%
 def L2_Star_Dis(P):
-    # P: npts * d
-    P = P.T
-    npts, d = P.shape
+    d, npts = P.shape
     tmp1 = np.prod((1 - P**2), axis=1)
     tmp2 = np.zeros((npts, npts))
     for i in range(npts):
         for j in range(npts):
-            tmp2[i, j] = np.prod(1 - np.max(P[[i, j], :], axis=0))
+            tmp2[i, j] = np.prod(1 - np.max(P[:, [i, j]], axis=0))
     return (1/3)**d - (1/2)**(d-1) * np.mean(tmp1) + np.mean(tmp2)
 # %%
 T = 1
@@ -212,12 +219,13 @@ def FaurePricing(npts, T=1, d=8, r=0.05, sigma=0.3, S0=100, K=100):
         res[i] = np.exp(-r * T) * max(np.prod(S**(1/d)) - K, 0)
     return res
 # %%
-def SobolPricing(npts, T=1, d=5, r=0.05, sigma=0.3, S0=100, K=100):
+def SobolPricing(npts, T=1, d=8, r=0.05, sigma=0.3, S0=100, K=100):
     res = np.zeros(npts)
     dt = T/d
     t = np.arange(1, d + 1) * dt
-    P = SOBOLPTS(1, npts, d, [3, 7, 11, 19, 37], 
-    np.array([[1, 1, 1, 1, 1], [1, 3, 5, 15, 17], [1, 1, 7, 11, 13], [1, 3, 7, 5, 7], [1, 1, 5, 3, 15]]))
+    #TODO: fix bug here. Can numbers from the same order be used?
+    P = SOBOLPTS(1, npts, d, [3, 7, 11, 19, 37, 67, 131, 285], 
+    [[1, 1, 1, 1, 1], [1, 3, 5, 15, 17], [1, 1, 7, 11, 13], [1, 3, 7, 5, 7], [1, 1, 5, 3, 15], [1, 3, 1, 1, 9, 59, 25], [1, 1, 3, 7], [1, 3, 3, 9, 9]])
     P = P.flatten().reshape((d, npts), order="F")
     for i in range(npts):
         p = P[:, i]
@@ -236,35 +244,61 @@ def MCPricing(npts, T=1, d=8, r=0.05, sigma=0.3, S0=100, K=100):
         res[i] = np.exp(-r * T) * max(np.prod(S**(1/d)) - K, 0)
     return res
 # %%
-def QMC(method, sequence, npts, T=1, d=8, r=0.05, sigma=0.3, S0=100, K=100):
+def getPrimeNumberList(d):
+    p_list = [2]
+    idx = 1
+    n = 3
+    while idx < d:
+        flag = True
+        for p in p_list:
+            if n % p == 0:
+                flag = False
+                break
+            if p**2 > n:
+                break
+        if flag:
+            p_list.append(n)
+            idx += 1
+        n += 1
+    return p_list
+
+# %%
+def QMC(w, method, sequence, npts, d=64, T=1, r=0.05, sigma=0.3, S0=100, K=100):
     res = np.zeros(npts)
     dt = T/d
     t = np.arange(1, d + 1) * dt
     if sequence == "Faure":
-        P = FAUREPTS(1, npts, d, 13)
-        P = P.flatten().reshape((d, npts), order="F")
+        b_list = getPrimeNumberList(d+1)
+        P = FAUREPTS(b_list[-1]**4 - 1, npts*2, d+1, b_list[-1])[1:, npts:]
+        #P = P.flatten(order="C").reshape((d, npts), order="F")
+        Z = norm.ppf(P)
     elif sequence == "Halton":
         P = np.zeros((d, npts))
-        b_list = [2, 3, 5, 7, 11, 13, 17, 19]
+        b_list = getPrimeNumberList(d)
         for i in range(d):
             P[i, :] = getVanDerCorputPoints(1, npts, b_list[i])
-        P = P.flatten().reshape((d, npts), order="F")
+        P = P.flatten(order="C").reshape((d, npts), order="F")
+        Z = norm.ppf(P)
     elif sequence == "Korobov":
-        P = goodLatticePoints(npts)
+        P = goodLatticePoints(npts, d)
+        Z = norm.ppf(P)
+    elif sequence == "Standard":
+        Z = norm.rvs(size=(d, npts))
+
     if method == "BB":
         for i in range(npts):
             h = d
-            Z = norm.ppf(P[:, i])
             B = np.zeros(d+1)
-            B[d] = B[0] + np.sqrt(h/d) * Z[0]
+            B[d] = B[0] + np.sqrt(h/d) * Z[0, i]
             idx = 1
-            for k in range(1, 4):
+            for k in range(1, int(np.floor(np.log(d) / np.log(2))) + 1):
                 h = h // 2
                 for j in range(1, int(2**(k-1)) + 1):
-                    B[(2*j-1)*h] = (B[2*(j-1)*h] + B[2*j*h]) / 2 + np.sqrt(h/2/d) * Z[idx]
+                    B[(2*j-1)*h] = (B[2*(j-1)*h] + B[2*j*h]) / 2 + np.sqrt(h/2/d) * Z[idx, i]
                     idx += 1
             S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * B[1:])
-            res[i] = np.exp(-r * T) * max(np.prod(S**(1/d)) - K, 0)
+            res[i] = np.exp(-r * T) * max(np.average(S, weights=w) - K, 0)
+
     elif method == "PCA":
         C = np.zeros((d, d))
         for i in range(d):
@@ -275,10 +309,17 @@ def QMC(method, sequence, npts, T=1, d=8, r=0.05, sigma=0.3, S0=100, K=100):
         V = V[:, ::-1]
         A = np.matmul(V, np.diag(np.sqrt(w)))
         for i in range(npts):
-            B = np.dot(A, norm.ppf(P[:, i]))
+            B = np.dot(A, Z[:, i])
             S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * B)
-            res[i] = np.exp(-r * T) * max(np.prod(S**(1/d)) - K, 0)
-    return res
-
+            res[i] = np.exp(-r * T) * max(np.average(S, weights=w) - K, 0)
+    elif method == "Standard":
+        for i in range(npts):
+            S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * np.sqrt(dt) * np.cumsum(Z[:, i]))
+            res[i] = np.exp(-r * T) * max(np.average(S, weights=w) - K, 0)
+    return res, P
 
 # %%
+d = 64
+w1 = np.ones(d) / d
+res1, B= QMC(w1, "BB", "Halton", 2000, d)
+# TODO: Halton & PCA have bugs
