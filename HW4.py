@@ -263,7 +263,7 @@ def getPrimeNumberList(d):
     return p_list
 
 # %%
-def QMC(w, method, sequence, npts, d=64, T=1, r=0.05, sigma=0.3, S0=100, K=100):
+def QMC(weights, method, sequence, npts, d=64, T=1, r=0.05, sigma=0.3, S0=100, K=100):
     res = np.zeros(npts)
     dt = T/d
     t = np.arange(1, d + 1) * dt
@@ -286,40 +286,51 @@ def QMC(w, method, sequence, npts, d=64, T=1, r=0.05, sigma=0.3, S0=100, K=100):
         Z = norm.rvs(size=(d, npts))
 
     if method == "BB":
+        B = np.zeros((d+1, npts))
         for i in range(npts):
             h = d
-            B = np.zeros(d+1)
-            B[d] = B[0] + np.sqrt(h/d) * Z[0, i]
+            # B = np.zeros(d+1)
+            # B[d] = B[0] + np.sqrt(h/d) * Z[0, i]
             idx = 1
+            B[d, i] = B[0, i] + np.sqrt(h/d) * Z[0, i]
             for k in range(1, int(np.floor(np.log(d) / np.log(2))) + 1):
                 h = h // 2
                 for j in range(1, int(2**(k-1)) + 1):
-                    B[(2*j-1)*h] = (B[2*(j-1)*h] + B[2*j*h]) / 2 + np.sqrt(h/2/d) * Z[idx, i]
+                    # B[(2*j-1)*h] = (B[2*(j-1)*h] + B[2*j*h]) / 2 + np.sqrt(h/2/d) * Z[idx, i]
+                    B[(2*j-1)*h, i] = (B[2*(j-1)*h, i] + B[2*j*h, i]) / 2 + np.sqrt(h/2/d) * Z[idx, i]
                     idx += 1
-            S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * B[1:])
-            res[i] = np.exp(-r * T) * max(np.average(S, weights=w) - K, 0)
+            S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * B[1:, i])
+            res[i] = np.exp(-r * T) * max(np.average(S, weights=weights) - K, 0)
 
     elif method == "PCA":
         C = np.zeros((d, d))
         for i in range(d):
             for j in range(d):
-                C[i, j] = t[min(i, j)]
-        w, V = np.linalg.eigh(C)
-        w = w[::-1]
-        V = V[:, ::-1]
+                C[i, j] = min(t[i], t[j])
+        w, V = np.linalg.eig(C)
         A = np.matmul(V, np.diag(np.sqrt(w)))
+        B = np.zeros((d, npts))
         for i in range(npts):
-            B = np.dot(A, Z[:, i])
-            S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * B)
-            res[i] = np.exp(-r * T) * max(np.average(S, weights=w) - K, 0)
+            B[:, i] = np.matmul(A, Z[:, i])
+            S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * B[:, i])
+            res[i] = np.exp(-r * T) * max(np.average(S, weights=weights) - K, 0)
     elif method == "Standard":
         for i in range(npts):
             S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * np.sqrt(dt) * np.cumsum(Z[:, i]))
-            res[i] = np.exp(-r * T) * max(np.average(S, weights=w) - K, 0)
-    return res, P
+            res[i] = np.exp(-r * T) * max(np.average(S, weights=weights) - K, 0)
+    return res
 
 # %%
 d = 64
 w1 = np.ones(d) / d
-res1, B= QMC(w1, "BB", "Halton", 2000, d)
-# TODO: Halton & PCA have bugs
+# res1, B= QMC(w1, "BB", "Halton", 2000, d)
+# TODO: Halton has bugs? 
+
+# %%
+def HaltonSeq(npts, d):
+    P = np.zeros((d, npts))
+    b_list = getPrimeNumberList(d)
+    for i in range(d):
+        P[i, :] = getVanDerCorputPoints(1, npts, b_list[i])
+    P = P.flatten(order="C").reshape((d, npts), order="F")
+    return P
