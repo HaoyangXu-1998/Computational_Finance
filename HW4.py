@@ -1,6 +1,9 @@
 # %%
 import numpy as np
 from scipy.stats import norm
+import matplotlib.pyplot as plt
+import seaborn as sns
+from matplotlib.backends.backend_pdf import PdfPages 
 # %%
 def B_ARY(k, b):
     a = [0]
@@ -156,10 +159,10 @@ def SOBOLPTS(n0, npts, d, p_vec, m_mat):
             P[k-n0, i] = np.sum(b_pwrs * y[:, i])
     return P
 # %%
-def goodLatticePoints(npts, d=50, a=393):
-    n = 2039
+def goodLatticePoints(npts, d, a=8363):
+    n = 32749
     P = np.zeros((d, n))
-    for i in range(n):
+    for i in range(npts+1):
         P[0, i] = i
         for j in range(1, d):
             P[j, i] = (a * P[j-1, i]) % n
@@ -338,7 +341,284 @@ def QMC(weights, method, sequence, npts, d=64, T=1, r=0.05, sigma=0.3, S0=100, K
     return res
 
 # %%
-d = 120
+# n_Faure_d=64
+d = 64
 w1 = np.ones(d) / d
+npts_list = np.arange(500, 20500, 500)
+res_faure = np.zeros((3, len(npts_list)))
+std_faure = np.zeros((3, len(npts_list)))
+for i, npts in enumerate(npts_list):
+    res = QMC(w1, "BB", "Faure", npts, d)
+    res_faure[0, i] = res.mean()
+    std_faure[0, i] = np.sqrt(res.var() / npts)
+    res = QMC(w1, "PCA", "Faure", npts, d)
+    res_faure[1, i] = res.mean()
+    std_faure[1, i] = np.sqrt(res.var() / npts)
+    res = QMC(w1, "Standard", "Faure", npts, d)
+    res_faure[2, i] = res.mean()
+    std_faure[2, i] = np.sqrt(res.var() / npts)
+# %%
+p1 = PdfPages("./pre/figure/n_Faure_d=64.pdf")
+f1 = plt.figure(figsize=(12, 8))
+plt.plot(npts_list, res_faure[0, :], label="Faure+BB", linewidth=2)
+plt.fill_between(npts_list, res_faure[0, :]-std_faure[0, :], res_faure[0, :]+std_faure[0, :], alpha=0.5)
+plt.plot(npts_list, res_faure[1, :], label="Faure+PCA", linewidth=2)
+plt.fill_between(npts_list, res_faure[1, :]-std_faure[1, :], res_faure[1, :]+std_faure[1, :], alpha=0.5)
+plt.plot(npts_list, res_faure[2, :], label="Faure+Standard", linewidth=2)
+plt.fill_between(npts_list, res_faure[2, :]-std_faure[2, :], res_faure[2, :]+std_faure[2, :], alpha=0.5)
+plt.title("Faure Method with npts from 500 to 20000", fontsize=24)
+plt.legend(fontsize=20)
+plt.ylabel("Price", fontsize=20)
+plt.xlabel("npts", fontsize=20)
+plt.xticks(fontsize=16)
+plt.yticks(fontsize=16)
+p1.savefig()
+p1.close()
+# %%
+# d_Faure_n=5000
+npts = 5000
+d_list = np.arange(8, 256+16, 16)
+res_faure = np.zeros((3, len(d_list)))
+std_faure = np.zeros((3, len(d_list)))
+for i, d in enumerate(d_list):
+    w1 = np.ones(d) / d
+    res = QMC(w1, "BB", "Faure", npts, d)
+    res_faure[0, i] = res.mean()
+    std_faure[0, i] = res.std()
+    res = QMC(w1, "PCA", "Faure", npts, d)
+    res_faure[1, i] = res.mean()
+    std_faure[1, i] = res.std()
+    res = QMC(w1, "Standard", "Faure", npts, d)
+    res_faure[2, i] = res.mean()
+    std_faure[2, i] = res.std()
+    print(w1)
+std_faure /= np.sqrt(npts)
+# %%
+p1 = PdfPages("./pre/figure/d_Faure_n=5000.pdf")
+f1 = plt.figure(figsize=(12, 8))
+plt.plot(d_list, res_faure[0, :], label="Faure+BB", linewidth=2)
+plt.fill_between(d_list, res_faure[0, :]-std_faure[0, :], res_faure[0, :]+std_faure[0, :], alpha=0.5)
+plt.plot(d_list, res_faure[1, :], label="Faure+PCA", linewidth=2)
+plt.fill_between(d_list, res_faure[1, :]-std_faure[1, :], res_faure[1, :]+std_faure[1, :], alpha=0.5)
+plt.plot(d_list, res_faure[2, :], label="Faure+Standard", linewidth=2)
+plt.fill_between(d_list, res_faure[2, :]-std_faure[2, :], res_faure[2, :]+std_faure[2, :], alpha=0.5)
+plt.title("Faure Method with d from 8 to 256", fontsize=24)
+plt.legend(fontsize=20)
+plt.ylabel("Price", fontsize=20)
+plt.xlabel("d", fontsize=20)
+plt.xticks(fontsize=16)
+plt.yticks(fontsize=16)
+p1.savefig()
+p1.close()
+# %%
+# n_Halton_d=64
+d = 64
+w1 = np.ones(d) / d
+npts_list = np.arange(500, 20500, 500)
+res_Halton = np.zeros((3, len(npts_list)))
+std_Halton = np.zeros((3, len(npts_list)))
+for i, npts in enumerate(npts_list):
+    res = QMC(w1, "BB", "Halton", npts, d)
+    res_Halton[0, i] = res.mean()
+    std_Halton[0, i] = np.sqrt(res.var() / npts)
+    res = QMC(w1, "PCA", "Halton", npts, d)
+    res_Halton[1, i] = res.mean()
+    std_Halton[1, i] = np.sqrt(res.var() / npts)
+    res = QMC(w1, "Standard", "Halton", npts, d)
+    res_Halton[2, i] = res.mean()
+    std_Halton[2, i] = np.sqrt(res.var() / npts)
+# %%
+p1 = PdfPages("./pre/figure/n_Halton_d=64.pdf")
+f1 = plt.figure(figsize=(12, 8))
+plt.plot(npts_list, res_Halton[0, :], label="Halton+BB", linewidth=2)
+plt.fill_between(npts_list, res_Halton[0, :]-std_Halton[0, :], res_Halton[0, :]+std_Halton[0, :], alpha=0.5)
+plt.plot(npts_list, res_Halton[1, :], label="Halton+PCA", linewidth=2)
+plt.fill_between(npts_list, res_Halton[1, :]-std_Halton[1, :], res_Halton[1, :]+std_Halton[1, :], alpha=0.5)
+plt.plot(npts_list, res_Halton[2, :], label="Halton+Standard", linewidth=2)
+plt.fill_between(npts_list, res_Halton[2, :]-std_Halton[2, :], res_Halton[2, :]+std_Halton[2, :], alpha=0.5)
+plt.title("Halton Method with npts from 500 to 20000", fontsize=24)
+plt.legend(fontsize=20)
+plt.ylabel("Price", fontsize=20)
+plt.xlabel("npts", fontsize=20)
+plt.xticks(fontsize=16)
+plt.yticks(fontsize=16)
+p1.savefig()
+p1.close()
 
 # %%
+# d_Halton_n=10000
+npts = 10000
+d_list = np.arange(8, 256+16, 16)
+res_Halton = np.zeros((3, len(d_list)))
+std_Halton = np.zeros((3, len(d_list)))
+for i, d in enumerate(d_list):
+    w1 = np.ones(d) / d
+    res = QMC(w1, "BB", "Halton", npts, d)
+    res_Halton[0, i] = res.mean()
+    std_Halton[0, i] = res.std()
+    res = QMC(w1, "PCA", "Halton", npts, d)
+    res_Halton[1, i] = res.mean()
+    std_Halton[1, i] = res.std()
+    res = QMC(w1, "Standard", "Halton", npts, d)
+    res_Halton[2, i] = res.mean()
+    std_Halton[2, i] = res.std()
+std_Halton /= np.sqrt(npts)
+# %%
+p1 = PdfPages("./pre/figure/d_Halton_n=10000.pdf")
+f1 = plt.figure(figsize=(12, 8))
+plt.plot(d_list, res_Halton[0, :], label="Halton+BB", linewidth=2)
+plt.fill_between(d_list, res_Halton[0, :]-std_Halton[0, :], res_Halton[0, :]+std_Halton[0, :], alpha=0.5)
+plt.plot(d_list, res_Halton[1, :], label="Halton+PCA", linewidth=2)
+plt.fill_between(d_list, res_Halton[1, :]-std_Halton[1, :], res_Halton[1, :]+std_Halton[1, :], alpha=0.5)
+plt.plot(d_list, res_Halton[2, :], label="Halton+Standard", linewidth=2)
+plt.fill_between(d_list, res_Halton[2, :]-std_Halton[2, :], res_Halton[2, :]+std_Halton[2, :], alpha=0.5)
+plt.title("Halton Method with d from 8 to 256", fontsize=24)
+plt.legend(fontsize=20)
+plt.ylabel("Price", fontsize=20)
+plt.xlabel("d", fontsize=20)
+plt.xticks(fontsize=16)
+plt.yticks(fontsize=16)
+p1.savefig()
+p1.close()
+# %%
+# n_Standard_d=64
+d = 64
+w1 = np.ones(d) / d
+npts_list = np.arange(500, 20500, 500)
+res_Standard = np.zeros((3, len(npts_list)))
+std_Standard = np.zeros((3, len(npts_list)))
+for i, npts in enumerate(npts_list):
+    res = QMC(w1, "BB", "Standard", npts, d)
+    res_Standard[0, i] = res.mean()
+    std_Standard[0, i] = np.sqrt(res.var() / npts)
+    res = QMC(w1, "PCA", "Standard", npts, d)
+    res_Standard[1, i] = res.mean()
+    std_Standard[1, i] = np.sqrt(res.var() / npts)
+    res = QMC(w1, "Standard", "Standard", npts, d)
+    res_Standard[2, i] = res.mean()
+    std_Standard[2, i] = np.sqrt(res.var() / npts)
+# %%
+p1 = PdfPages("./pre/figure/n_Standard_d=64.pdf")
+f1 = plt.figure(figsize=(12, 8))
+plt.plot(npts_list, res_Standard[0, :], label="Standard+BB", linewidth=2)
+plt.fill_between(npts_list, res_Standard[0, :]-std_Standard[0, :], res_Standard[0, :]+std_Standard[0, :], alpha=0.5)
+plt.plot(npts_list, res_Standard[1, :], label="Standard+PCA", linewidth=2)
+plt.fill_between(npts_list, res_Standard[1, :]-std_Standard[1, :], res_Standard[1, :]+std_Standard[1, :], alpha=0.5)
+plt.plot(npts_list, res_Standard[2, :], label="Standard+Standard", linewidth=2)
+plt.fill_between(npts_list, res_Standard[2, :]-std_Standard[2, :], res_Standard[2, :]+std_Standard[2, :], alpha=0.5)
+plt.title("Standard Method with npts from 500 to 20000", fontsize=24)
+plt.legend(fontsize=20)
+plt.ylabel("Price", fontsize=20)
+plt.xlabel("npts", fontsize=20)
+plt.xticks(fontsize=16)
+plt.yticks(fontsize=16)
+p1.savefig()
+p1.close()
+
+# %%
+# %%
+# d_Standard_n=10000
+npts = 10000
+d_list = np.arange(8, 256+16, 16)
+res_Standard = np.zeros((3, len(d_list)))
+std_Standard = np.zeros((3, len(d_list)))
+for i, d in enumerate(d_list):
+    w1 = np.ones(d) / d
+    res = QMC(w1, "BB", "Standard", npts, d)
+    res_Standard[0, i] = res.mean()
+    std_Standard[0, i] = res.std()
+    res = QMC(w1, "PCA", "Standard", npts, d)
+    res_Standard[1, i] = res.mean()
+    std_Standard[1, i] = res.std()
+    res = QMC(w1, "Standard", "Standard", npts, d)
+    res_Standard[2, i] = res.mean()
+    std_Standard[2, i] = res.std()
+std_Standard /= np.sqrt(npts)
+# %%
+p1 = PdfPages("./pre/figure/d_Standard_n=10000.pdf")
+f1 = plt.figure(figsize=(12, 8))
+plt.plot(d_list, res_Standard[0, :], label="Standard+BB", linewidth=2)
+plt.fill_between(d_list, res_Standard[0, :]-std_Standard[0, :], res_Standard[0, :]+std_Standard[0, :], alpha=0.5)
+plt.plot(d_list, res_Standard[1, :], label="Standard+PCA", linewidth=2)
+plt.fill_between(d_list, res_Standard[1, :]-std_Standard[1, :], res_Standard[1, :]+std_Standard[1, :], alpha=0.5)
+plt.plot(d_list, res_Standard[2, :], label="Standard+Standard", linewidth=2)
+plt.fill_between(d_list, res_Standard[2, :]-std_Standard[2, :], res_Standard[2, :]+std_Standard[2, :], alpha=0.5)
+plt.title("Standard Method with d from 8 to 256", fontsize=24)
+plt.legend(fontsize=20)
+plt.ylabel("Price", fontsize=20)
+plt.xlabel("d", fontsize=20)
+plt.xticks(fontsize=16)
+plt.yticks(fontsize=16)
+p1.savefig()
+p1.close()
+# %%
+# n_Korobov_d=64
+# TODO: fix bug here
+d = 64
+w1 = np.ones(d) / d
+npts_list = np.arange(500, 20500, 500)
+res_Korobov = np.zeros((3, len(npts_list)))
+std_Korobov = np.zeros((3, len(npts_list)))
+for i, npts in enumerate(npts_list):
+    res = QMC(w1, "BB", "Korobov", npts, d)
+    res_Korobov[0, i] = res.mean()
+    std_Korobov[0, i] = np.sqrt(res.var() / npts)
+    res = QMC(w1, "PCA", "Korobov", npts, d)
+    res_Korobov[1, i] = res.mean()
+    std_Korobov[1, i] = np.sqrt(res.var() / npts)
+    res = QMC(w1, "Korobov", "Korobov", npts, d)
+    res_Korobov[2, i] = res.mean()
+    std_Korobov[2, i] = np.sqrt(res.var() / npts)
+# %%
+p1 = PdfPages("./pre/figure/n_Korobov_d=64.pdf")
+f1 = plt.figure(figsize=(12, 8))
+plt.plot(npts_list, res_Korobov[0, :], label="Korobov+BB", linewidth=2)
+plt.fill_between(npts_list, res_Korobov[0, :]-std_Korobov[0, :], res_Korobov[0, :]+std_Korobov[0, :], alpha=0.5)
+plt.plot(npts_list, res_Korobov[1, :], label="Korobov+PCA", linewidth=2)
+plt.fill_between(npts_list, res_Korobov[1, :]-std_Korobov[1, :], res_Korobov[1, :]+std_Korobov[1, :], alpha=0.5)
+plt.plot(npts_list, res_Korobov[2, :], label="Korobov+Korobov", linewidth=2)
+plt.fill_between(npts_list, res_Korobov[2, :]-std_Korobov[2, :], res_Korobov[2, :]+std_Korobov[2, :], alpha=0.5)
+plt.title("Korobov Method with npts from 500 to 20000", fontsize=24)
+plt.legend(fontsize=20)
+plt.ylabel("Price", fontsize=20)
+plt.xlabel("npts", fontsize=20)
+plt.xticks(fontsize=16)
+plt.yticks(fontsize=16)
+p1.savefig()
+p1.close()
+
+# %%
+# d_Korobov_n=10000
+npts = 10000
+d_list = np.arange(8, 256+16, 16)
+res_Korobov = np.zeros((3, len(d_list)))
+std_Korobov = np.zeros((3, len(d_list)))
+for i, d in enumerate(d_list):
+    w1 = np.ones(d) / d
+    res = QMC(w1, "BB", "Korobov", npts, d)
+    res_Korobov[0, i] = res.mean()
+    std_Korobov[0, i] = res.std()
+    res = QMC(w1, "PCA", "Korobov", npts, d)
+    res_Korobov[1, i] = res.mean()
+    std_Korobov[1, i] = res.std()
+    res = QMC(w1, "Korobov", "Korobov", npts, d)
+    res_Korobov[2, i] = res.mean()
+    std_Korobov[2, i] = res.std()
+std_Korobov /= np.sqrt(npts)
+# %%
+p1 = PdfPages("./pre/figure/d_Korobov_n=10000.pdf")
+f1 = plt.figure(figsize=(12, 8))
+plt.plot(d_list, res_Korobov[0, :], label="Korobov+BB", linewidth=2)
+plt.fill_between(d_list, res_Korobov[0, :]-std_Korobov[0, :], res_Korobov[0, :]+std_Korobov[0, :], alpha=0.5)
+plt.plot(d_list, res_Korobov[1, :], label="Korobov+PCA", linewidth=2)
+plt.fill_between(d_list, res_Korobov[1, :]-std_Korobov[1, :], res_Korobov[1, :]+std_Korobov[1, :], alpha=0.5)
+plt.plot(d_list, res_Korobov[2, :], label="Korobov+Korobov", linewidth=2)
+plt.fill_between(d_list, res_Korobov[2, :]-std_Korobov[2, :], res_Korobov[2, :]+std_Korobov[2, :], alpha=0.5)
+plt.title("Korobov Method with d from 8 to 256", fontsize=24)
+plt.legend(fontsize=20)
+plt.ylabel("Price", fontsize=20)
+plt.xlabel("d", fontsize=20)
+plt.xticks(fontsize=16)
+plt.yticks(fontsize=16)
+p1.savefig()
+p1.close()
