@@ -181,12 +181,12 @@ r = 0.05
 sigma = 0.3
 S0 = 100
 K = 100
-# %%
-s2 = (d + 1) * (2*d + 1)/(6*d**2) * sigma**2
-mu = (d + 1)/(2*d) * (r - sigma**2/2) + s2/2
-d1 = (np.log(S0/K) + (mu - s2/2) * T)/(np.sqrt(s2 * T))
-d2 = d1 - np.sqrt(s2 * T)
-C_BS = S0 * np.exp((mu - r) * T) * norm.cdf(d1) - K * norm.cdf(d2)
+# # %%
+# s2 = (d + 1) * (2*d + 1)/(6*d**2) * sigma**2
+# mu = (d + 1)/(2*d) * (r - sigma**2/2) + s2/2
+# d1 = (np.log(S0/K) + (mu - s2/2) * T)/(np.sqrt(s2 * T))
+# d2 = d1 - np.sqrt(s2 * T)
+# C_BS = S0 * np.exp((mu - r) * T) * norm.cdf(d1) - K * norm.cdf(d2)
 # %%
 # Halton
 def HaltonPricing(npts, T=1, d=8, r=0.05, sigma=0.3, S0=100, K=100):
@@ -218,21 +218,21 @@ def FaurePricing(npts, T=1, d=8, r=0.05, sigma=0.3, S0=100, K=100):
         S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * np.sqrt(dt) * np.cumsum(z))
         res[i] = np.exp(-r * T) * max(np.prod(S**(1/d)) - K, 0)
     return res
-# %%
-def SobolPricing(npts, T=1, d=8, r=0.05, sigma=0.3, S0=100, K=100):
-    res = np.zeros(npts)
-    dt = T/d
-    t = np.arange(1, d + 1) * dt
-    #TODO: fix bug here. Can numbers from the same order be used?
-    P = SOBOLPTS(1, npts, d, [3, 7, 11, 19, 37, 67, 131, 285], 
-    [[1, 1, 1, 1, 1], [1, 3, 5, 15, 17], [1, 1, 7, 11, 13], [1, 3, 7, 5, 7], [1, 1, 5, 3, 15], [1, 3, 1, 1, 9, 59, 25], [1, 1, 3, 7], [1, 3, 3, 9, 9]])
-    P = P.flatten().reshape((d, npts), order="F")
-    for i in range(npts):
-        p = P[:, i]
-        z = norm.ppf(p)
-        S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * np.sqrt(dt) * np.cumsum(z))
-        res[i] = np.exp(-r * T) * max(np.prod(S**(1/d)) - K, 0)
-    return res
+# # %%
+# def SobolPricing(npts, T=1, d=8, r=0.05, sigma=0.3, S0=100, K=100):
+#     res = np.zeros(npts)
+#     dt = T/d
+#     t = np.arange(1, d + 1) * dt
+#     #TODO: fix bug here. Can numbers from the same order be used?
+#     P = SOBOLPTS(1, npts, d, [3, 7, 11, 19, 37, 67, 131, 285], 
+#     [[1, 1, 1, 1, 1], [1, 3, 5, 15, 17], [1, 1, 7, 11, 13], [1, 3, 7, 5, 7], [1, 1, 5, 3, 15], [1, 3, 1, 1, 9, 59, 25], [1, 1, 3, 7], [1, 3, 3, 9, 9]])
+#     P = P.flatten().reshape((d, npts), order="F")
+#     for i in range(npts):
+#         p = P[:, i]
+#         z = norm.ppf(p)
+#         S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * np.sqrt(dt) * np.cumsum(z))
+#         res[i] = np.exp(-r * T) * max(np.prod(S**(1/d)) - K, 0)
+#     return res
 # %%
 def MCPricing(npts, T=1, d=8, r=0.05, sigma=0.3, S0=100, K=100):
     res = np.zeros(npts)
@@ -263,6 +263,34 @@ def getPrimeNumberList(d):
     return p_list
 
 # %%
+def generateBM_inner(n, Z, b0):
+    # Brownian motion
+    B = np.zeros(n+1)
+    B[0] = b0
+    h = n
+    B[n] = B[0] + np.sqrt(h/n) * Z[0]
+    idx = 1
+    for k in range(1, int(np.floor(np.log(n) / np.log(2))) + 1):
+        h = h // 2
+        for j in range(1, int(2**(k-1)) + 1):
+            B[(2*j-1)*h] = (B[2*(j-1)*h] + B[2*j*h]) / 2 + np.sqrt(h/2/n) * Z[idx]
+            idx += 1
+    return B
+def generateBM(d, Z, b0_0):
+    # Z: (d,)
+    res = []
+    while d != 0:
+        i = 0
+        while 2**i <= d:
+            i += 1
+        if not res:
+            res.append(generateBM_inner(2**(i-1), Z[ :int(2**(i-1))], b0_0))
+        else:
+            res.append(generateBM_inner(2**(i-1), Z[ :int(2**(i-1))], res[-1][-1])[1:])
+        d -= 2**(i-1)
+        Z = Z[int(2**(i-1)): ]
+    return np.concatenate(res)
+# %%
 def QMC(weights, method, sequence, npts, d=64, T=1, r=0.05, sigma=0.3, S0=100, K=100):
     res = np.zeros(npts)
     dt = T/d
@@ -270,7 +298,7 @@ def QMC(weights, method, sequence, npts, d=64, T=1, r=0.05, sigma=0.3, S0=100, K
     if sequence == "Faure":
         b_list = getPrimeNumberList(d+1)
         P = FAUREPTS(b_list[-1]**4 - 1, npts*2, d+1, b_list[-1])[1:, npts:]
-        #P = P.flatten(order="C").reshape((d, npts), order="F")
+        # P = P.flatten(order="C").reshape((d, npts), order="F")
         Z = norm.ppf(P)
     elif sequence == "Halton":
         P = np.zeros((d, npts))
@@ -286,20 +314,9 @@ def QMC(weights, method, sequence, npts, d=64, T=1, r=0.05, sigma=0.3, S0=100, K
         Z = norm.rvs(size=(d, npts))
 
     if method == "BB":
-        B = np.zeros((d+1, npts))
         for i in range(npts):
-            h = d
-            # B = np.zeros(d+1)
-            # B[d] = B[0] + np.sqrt(h/d) * Z[0, i]
-            idx = 1
-            B[d, i] = B[0, i] + np.sqrt(h/d) * Z[0, i]
-            for k in range(1, int(np.floor(np.log(d) / np.log(2))) + 1):
-                h = h // 2
-                for j in range(1, int(2**(k-1)) + 1):
-                    # B[(2*j-1)*h] = (B[2*(j-1)*h] + B[2*j*h]) / 2 + np.sqrt(h/2/d) * Z[idx, i]
-                    B[(2*j-1)*h, i] = (B[2*(j-1)*h, i] + B[2*j*h, i]) / 2 + np.sqrt(h/2/d) * Z[idx, i]
-                    idx += 1
-            S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * B[1:, i])
+            B = generateBM(d, Z[:, i], 0)
+            S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * B[1:])
             res[i] = np.exp(-r * T) * max(np.average(S, weights=weights) - K, 0)
 
     elif method == "PCA":
@@ -321,16 +338,7 @@ def QMC(weights, method, sequence, npts, d=64, T=1, r=0.05, sigma=0.3, S0=100, K
     return res
 
 # %%
-d = 64
+d = 120
 w1 = np.ones(d) / d
-# res1, B= QMC(w1, "BB", "Halton", 2000, d)
-# TODO: Halton has bugs? 
 
 # %%
-def HaltonSeq(npts, d):
-    P = np.zeros((d, npts))
-    b_list = getPrimeNumberList(d)
-    for i in range(d):
-        P[i, :] = getVanDerCorputPoints(1, npts, b_list[i])
-    P = P.flatten(order="C").reshape((d, npts), order="F")
-    return P
