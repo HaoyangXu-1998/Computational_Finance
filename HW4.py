@@ -184,12 +184,14 @@ r = 0.05
 sigma = 0.3
 S0 = 100
 K = 100
-# # %%
-# s2 = (d + 1) * (2*d + 1)/(6*d**2) * sigma**2
-# mu = (d + 1)/(2*d) * (r - sigma**2/2) + s2/2
-# d1 = (np.log(S0/K) + (mu - s2/2) * T)/(np.sqrt(s2 * T))
-# d2 = d1 - np.sqrt(s2 * T)
-# C_BS = S0 * np.exp((mu - r) * T) * norm.cdf(d1) - K * norm.cdf(d2)
+# %%
+def trueAnswer(d = 8, T=1, r=0.05, sigma=0.3, S0=100, K=100):
+    s2 = (d + 1) * (2*d + 1)/(6*d**2) * sigma**2
+    mu = (d + 1)/(2*d) * (r - sigma**2/2) + s2/2
+    d1 = (np.log(S0/K) + (mu - s2/2) * T)/(np.sqrt(s2 * T))
+    d2 = d1 - np.sqrt(s2 * T)
+    C_BS = S0 * np.exp((mu - r) * T) * norm.cdf(d1) - np.exp(-r * T) * K * norm.cdf(d2)
+    return C_BS
 # %%
 # Halton
 def HaltonPricing(npts, T=1, d=8, r=0.05, sigma=0.3, S0=100, K=100):
@@ -300,15 +302,16 @@ def QMC(weights, method, sequence, npts, d=64, T=1, r=0.05, sigma=0.3, S0=100, K
     t = np.arange(1, d + 1) * dt
     if sequence == "Faure":
         b_list = getPrimeNumberList(d+1)
-        P = FAUREPTS(b_list[-1]**4 - 1, npts*2, d+1, b_list[-1])[1:, npts:]
-        # P = P.flatten(order="C").reshape((d, npts), order="F")
+        for i in range(len(b_list)):
+            if b_list[i] > d:
+                break
+        P = FAUREPTS(b_list[i+1]**4 - 1, npts, d+1, b_list[i+1])[1:, :]
         Z = norm.ppf(P)
     elif sequence == "Halton":
         P = np.zeros((d, npts))
         b_list = getPrimeNumberList(d)
         for i in range(d):
             P[i, :] = getVanDerCorputPoints(1, npts, b_list[i])
-        P = P.flatten(order="C").reshape((d, npts), order="F")
         Z = norm.ppf(P)
     elif sequence == "Korobov":
         P = goodLatticePoints(npts, d)
@@ -340,6 +343,53 @@ def QMC(weights, method, sequence, npts, d=64, T=1, r=0.05, sigma=0.3, S0=100, K
             res[i] = np.exp(-r * T) * max(np.average(S, weights=weights) - K, 0)
     return res
 
+# %%
+def QMC_geo(method, sequence, npts, d, T=1, r=0.05, sigma=0.3, S0=100, K=100):
+    res = np.zeros(npts)
+    dt = T/d
+    t = np.arange(1, d + 1) * dt
+    if sequence == "Faure":
+        b_list = getPrimeNumberList(d+1)
+        for i in range(len(b_list)):
+            if b_list[i] > d:
+                break
+        P = FAUREPTS(b_list[i+1]**4 - 1, npts, d+1, b_list[i+1])[1:, :]
+        Z = norm.ppf(P)
+    elif sequence == "Halton":
+        P = np.zeros((d, npts))
+        b_list = getPrimeNumberList(d)
+        for i in range(d):
+            P[i, :] = getVanDerCorputPoints(1, npts, b_list[i])
+        Z = norm.ppf(P)
+    elif sequence == "Korobov":
+        P = goodLatticePoints(npts, d)
+        Z = norm.ppf(P)
+    elif sequence == "Standard":
+        Z = norm.rvs(size=(d, npts))
+
+    if method == "BB":
+        for i in range(npts):
+            B = generateBM(d, Z[:, i], 0)
+            S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * B[1:])
+            res[i] = np.exp(-r * T) * max(np.prod(S**(1/d)) - K, 0)
+
+    elif method == "PCA":
+        C = np.zeros((d, d))
+        for i in range(d):
+            for j in range(d):
+                C[i, j] = min(t[i], t[j])
+        w, V = np.linalg.eig(C)
+        A = np.matmul(V, np.diag(np.sqrt(w)))
+        B = np.zeros((d, npts))
+        for i in range(npts):
+            B[:, i] = np.matmul(A, Z[:, i])
+            S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * B[:, i])
+            res[i] = np.exp(-r * T) * max(np.prod(S**(1/d)) - K, 0)
+    elif method == "Standard":
+        for i in range(npts):
+            S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * np.sqrt(dt) * np.cumsum(Z[:, i]))
+            res[i] = np.exp(-r * T) * max(np.prod(S**(1/d)) - K, 0)
+    return res
 # %%
 # n_Faure_d=64
 d = 64
