@@ -1,6 +1,9 @@
 #include <iostream>
 #include <string>
 
+/* 
+链表节点的定义，每个节点包括当前人的id，密码和指向下一个人的指针
+*/
 struct ListNode
 {
 	int id;
@@ -14,6 +17,9 @@ struct ListNode
 	}
 };
 
+/* 
+顺序表的定义，包括当前在队伍内的人的id和相应的密码，以及队伍人数
+*/
 struct SqList
 {
 	int* id;
@@ -46,12 +52,14 @@ ListNode* InitListNode(int n, int* passwords) {
 			newNode = new ListNode(i + 1, passwords[i], newNode);
 		}
 	}
+	//使链表成环
 	tail->next = newNode;
 	return newNode;
 }
 
 void printIds(ListNode* head, int m) {
 	using namespace std;
+	//如果队伍只有一人，则输出此人的id，并结束约瑟夫环过程
 	if (head->next == head) {
 		cout << (head->id) << endl;
 		delete head;
@@ -60,6 +68,7 @@ void printIds(ListNode* head, int m) {
 
 	ListNode* p, * q;
 	if (m == 1) {
+		//如果当前人要出列，则要遍历列表一圈找到上一个人
 		p = head;
 		q = head;
 		while (q->next != p) q = q->next;
@@ -77,21 +86,25 @@ void printIds(ListNode* head, int m) {
 	m = p->password;
 	q->next = p->next;
 	delete p;
+	//对剩下的链表递归调用该函数
 	printIds(q->next, m);
 }
 
 void printIds(SqList* p, int m) {
 	using namespace std;
 	if (p->size == 1) {
+		//如果队伍只剩一人，则直接输出id
 		cout << p->id[p->size - 1] << endl;
 		delete p;
 		return;
 	}
+	//通过取模的方式实现从顺序表的末尾跳到开头
 	int new_current = (p->current + m - 1) % p->size;
 
 	cout << p->id[new_current] << endl;
 
 	int new_m = (p->passwords)[new_current];
+	//将出列人后面的人的id和密码往前移动一格
 	for (int i = new_current; i < p->size - 1; i++) {
 		p->id[i] = p->id[i + 1];
 		p->passwords[i] = p->passwords[i + 1];
@@ -99,7 +112,6 @@ void printIds(SqList* p, int m) {
 	p->size--;
 	p->current = new_current;
 	printIds(p, new_m);
-
 }
 
 
