@@ -114,7 +114,6 @@ void printIds(SqList* p, int m) {
 	printIds(p, new_m);
 }
 
-
 int main(int argc, char** argv) {
 	using namespace std;
 	string method;
@@ -138,11 +137,20 @@ int main(int argc, char** argv) {
 	int* arr_password = new int[n];
 	for (int i = 0; i < n; i++) {
 		cin >> arr_password[i];
+		if (arr_password[i] <= 0) {
+			cout << "Wrong input! passwords must be greater than 0, please restart!";
+			return 0;
+		}
 	}
 
 	int m = 0;
 	cout << "please input the first m: " << endl;
-	cin >> m;
+	while (!(cin >> m) || m <= 0) {
+		cin.clear();
+		cin.sync();
+		cout << "The first m must be a integer and greater than 0, please input again: " << endl;
+	}
+
 	cout << "The answer is:" << endl;
 	if (method == "LinkedList") {
 		ListNode* head = InitListNode(n, arr_password);
