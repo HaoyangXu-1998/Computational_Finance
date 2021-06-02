@@ -451,7 +451,6 @@ def QMC_AV(weights, method, sequence, npts, d, T=1, r=0.05, sigma=0.3, S0=100, K
             res[i] = np.exp(-r * T) * (max(np.average(S1, weights=weights) - K, 0) + max(np.average(S2, weights=weights) - K, 0)) / 2
     return res
 # %%
-# TODO: CV method
 def QMC_CV(weights, method, sequence, npts, d=64, T=1, r=0.05, sigma=0.3, S0=100, K=100):
     P_geo = trueAnswer(d)
     res = np.zeros((npts, 2))
@@ -505,8 +504,59 @@ def QMC_CV(weights, method, sequence, npts, d=64, T=1, r=0.05, sigma=0.3, S0=100
     res = res[:, 0] - b_star * (res[:, 1] - P_geo)
     return res
 # %%
-def QMC_IS(weights, method, sequence, npts, d=64, T=1, r=0.05, sigma=0.3, S0=100, K=100):
-    res = np.zeros((npts, 2))
+# def QMC_IS(weights, method, sequence, npts, d=64, T=1, r=0.05, sigma=0.3, S0=100, K=100):
+#     res = np.zeros((npts, 2))
+#     dt = T/d
+#     t = np.arange(1, d + 1) * dt
+#     if sequence == "Faure":
+#         b_list = getPrimeNumberList(d+1)
+#         for i in range(len(b_list)):
+#             if b_list[i] > d:
+#                 break
+#         P = FAUREPTS(b_list[i+1]**4 - 1, npts, d+1, b_list[i+1])[1:, :]
+#         Z = norm.ppf(P)
+#     elif sequence == "Halton":
+#         P = np.zeros((d, npts))
+#         b_list = getPrimeNumberList(d)
+#         for i in range(d):
+#             P[i, :] = getVanDerCorputPoints(1, npts, b_list[i])
+#         Z = norm.ppf(P)
+#     elif sequence == "Korobov":
+#         P = goodLatticePoints(npts, d)
+#         Z = norm.ppf(P)
+
+#     if method == "BB":
+#         for i in range(npts):
+#             B = generateBM(d, Z[:, i], 0)
+#             S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * B[1:])
+#             res[i, 0] = np.exp(-r * T) * max(np.average(S, weights=weights) - K, 0)
+#             res[i, 1] = (2*np.pi)**(-d/2) * np.exp(-1/2 * np.sum(P[:, i]**2))
+
+#     elif method == "PCA":
+#         C = np.zeros((d, d))
+#         for i in range(d):
+#             for j in range(d):
+#                 C[i, j] = min(t[i], t[j])
+#         w, V = np.linalg.eig(C)
+#         A = np.matmul(V, np.diag(np.sqrt(w)))
+#         B = np.zeros((d, npts))
+#         for i in range(npts):
+#             B[:, i] = np.matmul(A, Z[:, i])
+#             S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * B[:, i])
+#             res[i, 0] = np.exp(-r * T) * max(np.average(S, weights=weights) - K, 0)
+#             # res[i, 1] = (2*np.pi)**(-d/2) * np.exp(-1/2 * np.sum(P[:, i]**2))
+#             res[i, 1] = (2*np.pi)**(-d/2) * (np.prod(w))**(-1/2) * np.exp(-1/2 * np.sum(P[:, i] * np.dot(np.linalg.inv(C), P[:, i]) ) )
+#     elif method == "Standard":
+#         for i in range(npts):
+#             S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * np.sqrt(dt) * np.cumsum(Z[:, i]))
+#             res[i, 0] = np.exp(-r * T) * max(np.average(S, weights=weights) - K, 0)
+#             res[i, 1] = (2*np.pi)**(-d/2) * np.exp(-1/2 * np.sum(P[:, i]**2))
+#     return res
+# %%
+def QMC_CV_AV(weights, method, sequence, npts, d=64, T=1, r=0.05, sigma=0.3, S0=100, K=100):
+    P_geo = trueAnswer(d)
+    res1 = np.zeros((npts, 2))
+    res2 = np.zeros((npts, 2))
     dt = T/d
     t = np.arange(1, d + 1) * dt
     if sequence == "Faure":
@@ -515,24 +565,36 @@ def QMC_IS(weights, method, sequence, npts, d=64, T=1, r=0.05, sigma=0.3, S0=100
             if b_list[i] > d:
                 break
         P = FAUREPTS(b_list[i+1]**4 - 1, npts, d+1, b_list[i+1])[1:, :]
-        Z = norm.ppf(P)
+        Z1 = norm.ppf(P)
+        Z2 = norm.ppf(1 - P)
     elif sequence == "Halton":
         P = np.zeros((d, npts))
         b_list = getPrimeNumberList(d)
         for i in range(d):
             P[i, :] = getVanDerCorputPoints(1, npts, b_list[i])
-        Z = norm.ppf(P)
+        Z1 = norm.ppf(P)
+        Z2 = norm.ppf(1 - P)
     elif sequence == "Korobov":
+        
         P = goodLatticePoints(npts, d)
-        Z = norm.ppf(P)
-
-
+        Z1 = norm.ppf(P)
+        Z2 = norm.ppf(1 - P)
+    elif sequence == "Standard":
+        P = np.random.random((d, npts))
+        Z1 = norm.ppf(P)
+        Z2 = norm.ppf(1 - P)
+    
     if method == "BB":
         for i in range(npts):
-            B = generateBM(d, Z[:, i], 0)
-            S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * B[1:])
-            res[i, 0] = np.exp(-r * T) * max(np.average(S, weights=weights) - K, 0)
-            res[i, 1] = np.exp(-1/2 * np.sum(P[:, i]**2))
+            B1 = generateBM(d, Z1[:, i], 0)
+            S1 = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * B1[1:])
+            res1[i, 0] = np.exp(-r * T) * max(np.average(S1, weights=weights) - K, 0)
+            res1[i, 1] = np.exp(-r * T) * max(np.prod(S1**weights) - K, 0)
+            B2 = generateBM(d, Z2[:, i], 0)
+            S2 = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * B2[1:])
+            res2[i, 0] = np.exp(-r * T) * max(np.average(S2, weights=weights) - K, 0)
+            res2[i, 1] = np.exp(-r * T) * max(np.prod(S2**weights) - K, 0)
+            
 
     elif method == "PCA":
         C = np.zeros((d, d))
@@ -541,20 +603,29 @@ def QMC_IS(weights, method, sequence, npts, d=64, T=1, r=0.05, sigma=0.3, S0=100
                 C[i, j] = min(t[i], t[j])
         w, V = np.linalg.eig(C)
         A = np.matmul(V, np.diag(np.sqrt(w)))
-        B = np.zeros((d, npts))
+        B1 = B2 = np.zeros(d)
         for i in range(npts):
-            B[:, i] = np.matmul(A, Z[:, i])
-            S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * B[:, i])
-            res[i, 0] = np.exp(-r * T) * max(np.average(S, weights=weights) - K, 0)
-            res[i, 1] = np.exp(-1/2 * np.sum(P[:, i]**2))
+            B1 = np.matmul(A, Z1[:, i])
+            S1 = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * B1)
+            res1[i, 0] = np.exp(-r * T) * max(np.average(S1, weights=weights) - K, 0)
+            res1[i, 1] = np.exp(-r * T) * max(np.prod(S1**weights) - K, 0)
+            B2 = np.matmul(A, Z2[:, i])
+            S2 = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * B2)
+            res2[i, 0] = np.exp(-r * T) * max(np.average(S2, weights=weights) - K, 0)
+            res2[i, 1] = np.exp(-r * T) * max(np.prod(S2**weights) - K, 0)
     elif method == "Standard":
         for i in range(npts):
-            S = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * np.sqrt(dt) * np.cumsum(Z[:, i]))
-            res[i, 0] = np.exp(-r * T) * max(np.average(S, weights=weights) - K, 0)
-            res[i, 1] = np.exp(-1/2 * np.sum(P[:, i]**2))
+            S1 = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * np.sqrt(dt) * np.cumsum(Z1[:, i]))
+            res1[i, 0] = np.exp(-r * T) * max(np.average(S1, weights=weights) - K, 0)
+            res1[i, 1] = np.exp(-r * T) * max(np.prod(S1**weights) - K, 0)
+            S2 = S0 * np.exp((r - 0.5*sigma**2) * t + sigma * np.sqrt(dt) * np.cumsum(Z2[:, i]))
+            res2[i, 0] = np.exp(-r * T) * max(np.average(S2, weights=weights) - K, 0)
+            res2[i, 1] = np.exp(-r * T) * max(np.prod(S2**weights) - K, 0)
+    b_star1 = np.sum((res1[:, 1] - res1[:, 1].mean()) * (res1[:, 0] - res1[:, 0].mean())) / np.sum((res1[:, 1] - res1[:, 1].mean())**2)
+    b_star2 = np.sum((res2[:, 1] - res2[:, 1].mean()) * (res2[:, 0] - res2[:, 0].mean())) / np.sum((res2[:, 1] - res2[:, 1].mean())**2)
+    res = (res1[:, 0] - b_star1 * (res1[:, 1] - P_geo) + res2[:, 0] - b_star2 * (res2[:, 1] - P_geo)) / 2
     return res
-
-
+# %%
 
 
 
